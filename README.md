@@ -12,6 +12,10 @@ Backend: http://localhost:5000/movies
 5. `npm run dev:backend`
 6. `npm run dev:frontend`
 
+Seed 100 real movie records:
+
+`npm --workspace backend run seed:movies -- /Users/tal/Desktop/פרויקט\ מבחן/svExam/movies-with-posters.json`
+
 OpenAI API key: create a secret key at https://platform.openai.com/api-keys and save it as `OPENAI_API_KEY` in Vercel Environment Variables. Do not commit it.
 
 ## Features
