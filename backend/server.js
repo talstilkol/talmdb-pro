@@ -32,6 +32,18 @@ const tmdbImageBase = 'https://image.tmdb.org/t/p/w342';
 const tmdbLanguage = process.env.TMDB_LANGUAGE || 'en-US';
 const rateBuckets = new Map();
 let genreCache = { expiresAt: 0, map: new Map() };
+let mongoPromise;
+
+async function connectDB() {
+  if (mongoose.connection.readyState === 1) return mongoose.connection;
+  if (!process.env.MONGO_URI) {
+    const error = new Error('MONGO_URI is required');
+    error.status = 503;
+    throw error;
+  }
+  mongoPromise ||= mongoose.connect(process.env.MONGO_URI);
+  return mongoPromise;
+}
 
 function movieError({ title, genre, description, year, poster, tmdbId }) {
   if (!title || title.length > 80) return 'Title must be 1-80 characters';
@@ -130,6 +142,7 @@ function toSuggestion(movie, genresById) {
 
 app.get('/movies', async (_req, res, next) => {
   try {
+    await connectDB();
     res.json(await Movie.find().sort({ createdAt: -1 }));
   } catch (error) {
     next(error);
@@ -138,6 +151,7 @@ app.get('/movies', async (_req, res, next) => {
 
 app.post('/movies', async (req, res, next) => {
   try {
+    await connectDB();
     const movie = {
       title: clean(req.body.title),
       genre: clean(req.body.genre),
@@ -160,6 +174,7 @@ app.post('/movies', async (req, res, next) => {
 
 app.delete('/movies/:id', async (req, res, next) => {
   try {
+    await connectDB();
     if (!mongoose.isValidObjectId(req.params.id)) return bad(res, 'Invalid movie id');
     const deleted = await Movie.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ error: 'Movie not found' });
@@ -171,6 +186,7 @@ app.delete('/movies/:id', async (req, res, next) => {
 
 app.get('/movies/search', async (req, res, next) => {
   try {
+    await connectDB();
     const name = clean(req.query.name);
     if (!name) return res.json([]);
     const titleQuery = { title: { $regex: escapeRegex(name), $options: 'i' } };
@@ -252,12 +268,13 @@ app.use((error, _req, res, _next) => {
 });
 
 const port = process.env.PORT || 5000;
-if (!process.env.MONGO_URI) throw new Error('MONGO_URI is required');
+if (!process.env.VERCEL) {
+  connectDB()
+    .then(() => app.listen(port, () => console.log(`Backend listening on ${port}`)))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+}
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => app.listen(port, () => console.log(`Backend listening on ${port}`)))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+export default app;
