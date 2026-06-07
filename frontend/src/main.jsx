@@ -105,6 +105,7 @@ function AllMovies() {
 }
 
 function AddMovie() {
+  const [mode, setMode] = useState('pro');
   const [form, setForm] = useState({ title: '', genre: '', description: '', year: '', poster: '', tmdbId: '', source: 'manual' });
   const [genres, setGenres] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
@@ -166,7 +167,7 @@ function AddMovie() {
     const title = form.title.trim();
     const genre = form.genre.trim();
     const year = form.year ? Number(form.year) : undefined;
-    if (!title || !genre || !year) return alert('Enter title, genre and year first');
+    if (!title || !genre) return alert('Enter title and genre first');
     setGenerating(true);
     try {
       const data = await api('/movies/generate', {
@@ -200,6 +201,10 @@ function AddMovie() {
 
   useEffect(() => {
     const query = form.title.trim();
+    if (mode !== 'pro') {
+      setSuggestions([]);
+      return;
+    }
     if (skipSuggest.current) {
       skipSuggest.current = false;
       return;
@@ -223,7 +228,7 @@ function AddMovie() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [form.title]);
+  }, [form.title, mode]);
 
   useEffect(() => {
     api('/movies/genres').then(setGenres).catch(() => setGenres([]));
@@ -233,11 +238,29 @@ function AddMovie() {
 
   return (
     <form className="grid max-w-2xl gap-3" onSubmit={submit}>
-      <h1 className="text-2xl font-black">Add Movie</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-black">Add Movie</h1>
+        <div className="flex rounded-md border border-white/10 bg-neutral-900 p-1">
+          {['basic', 'pro'].map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={`rounded px-3 py-2 text-sm font-semibold capitalize ${mode === item ? 'bg-yellow-400 text-black' : 'text-neutral-300 hover:bg-neutral-800'}`}
+              onClick={() => {
+                setMode(item);
+                setSuggestions([]);
+                if (item === 'basic') setForm((current) => ({ ...current, poster: '', tmdbId: '', source: 'manual' }));
+              }}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="relative">
         <input autoComplete="off" className="w-full rounded-md border border-white/10 bg-neutral-900 p-3" name="title" placeholder="Title" value={form.title} onChange={change} />
-        {loadingSuggest && <p className="mt-2 text-xs text-neutral-400">Searching TMDb...</p>}
-        {suggestions.length > 0 && (
+        {mode === 'pro' && loadingSuggest && <p className="mt-2 text-xs text-neutral-400">Searching TMDb...</p>}
+        {mode === 'pro' && suggestions.length > 0 && (
           <div className="absolute z-20 mt-2 max-h-96 w-full overflow-auto rounded-lg border border-white/10 bg-neutral-950 shadow-2xl">
             {suggestions.map((movie) => (
               <button key={`${movie.tmdbId}-${movie.title}`} type="button" className="flex w-full gap-3 p-3 text-left hover:bg-white/10" onClick={() => pick(movie)}>
@@ -267,7 +290,7 @@ function AddMovie() {
         value={form.year}
         onChange={change}
       />
-      <input className="rounded-md border border-white/10 bg-neutral-900 p-3" name="poster" placeholder="Poster URL" value={form.poster} onChange={change} />
+      {mode === 'pro' && <input className="rounded-md border border-white/10 bg-neutral-900 p-3" name="poster" placeholder="Poster URL" value={form.poster} onChange={change} />}
       <textarea
         className="min-h-32 rounded-md border border-white/10 bg-neutral-900 p-3"
         name="description"
@@ -278,7 +301,7 @@ function AddMovie() {
       <p className="text-right text-xs text-neutral-400">{form.description.length}/200</p>
       {!hideGenerate && (
         <button type="button" className="rounded-md border border-yellow-400 px-4 py-3 font-semibold text-yellow-300 hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-60" onClick={generate} disabled={generating}>
-          {generating ? 'Generating...' : 'Generate AI Description'}
+          {generating ? 'Generating...' : 'Generate with AI'}
         </button>
       )}
       <button className="rounded-md bg-yellow-400 px-4 py-3 font-black text-black hover:bg-yellow-300">Add Movie</button>

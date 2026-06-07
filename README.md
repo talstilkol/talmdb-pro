@@ -24,11 +24,12 @@ OpenAI API key: create a secret key at https://platform.openai.com/api-keys and 
 
 - Express + Mongo movie library.
 - React + Tailwind Pro UI.
+- Basic add mode for manual title, genre, year, and AI-generated description only.
 - Live library search with debounce and request cancellation.
 - TMDb autocomplete with dynamic genre lookup from TMDb, not hardcoded genre IDs.
 - Movie autocomplete fills title, year, genre, description, poster, TMDb id, and source.
 - Required release year, optional poster, TMDb id, and source tracking.
-- AI description generation through Vercel AI Gateway or OpenAI.
+- AI description generation through Vercel AI Gateway or OpenAI; it returns and updates only `description`.
 - Backend validation, duplicate TMDb prevention, basic rate limiting, and safe title search.
 - Search by movie title or exact release year.
 

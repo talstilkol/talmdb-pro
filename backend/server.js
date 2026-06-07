@@ -228,13 +228,17 @@ app.post('/movies/generate', limit(12, 60000), async (req, res, next) => {
     const title = clean(req.body.title);
     const genre = clean(req.body.genre);
     const year = req.body.year === '' || req.body.year === undefined ? undefined : Number(req.body.year);
-    const error = movieError({ title, genre, description: '', year });
-    if (error) return bad(res, error);
+    if (!title || title.length > 80) return bad(res, 'Title must be 1-80 characters');
+    if (!genre) return bad(res, 'Genre is required');
+    if (year !== undefined && (!Number.isInteger(year) || year < firstMovieYear || year > maxReleaseYear)) {
+      return bad(res, 'Year is invalid');
+    }
     if (!process.env.AI_GATEWAY_API_KEY && !process.env.OPENAI_API_KEY) {
       return res.status(503).json({ error: 'AI_GATEWAY_API_KEY or OPENAI_API_KEY is required' });
     }
 
     const useGateway = Boolean(process.env.AI_GATEWAY_API_KEY);
+    const yearText = year ? ` Year: ${year}.` : '';
     const aiRes = await fetch(useGateway ? 'https://ai-gateway.vercel.sh/v1/chat/completions' : 'https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
@@ -249,13 +253,13 @@ app.post('/movies/generate', limit(12, 60000), async (req, res, next) => {
               messages: [
                 {
                   role: 'user',
-                  content: `Return JSON only: {"description":"..."}. Write a concise movie description under 200 characters. Title: ${title}. Year: ${year}. Genre: ${genre}.`
+                  content: `Return JSON only: {"description":"..."}. Write a concise movie description under 200 characters. Title: ${title}.${yearText} Genre: ${genre}.`
                 }
               ]
             }
           : {
               model: process.env.AI_MODEL || process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-              input: `Write one concise movie description under 200 characters. Title: ${title}. Year: ${year}. Genre: ${genre}. Return only the description.`
+              input: `Write one concise movie description under 200 characters. Title: ${title}.${yearText} Genre: ${genre}. Return only the description.`
             }
       )
     });
