@@ -5,11 +5,11 @@
   "rewrites": [
     {
       "source": "/movies",
-      "destination": "/api/movies"
+      "destination": "/_/backend/movies"
     },
     {
       "source": "/movies/:path*",
-      "destination": "/api/movies/:path*"
+      "destination": "/_/backend/movies/:path*"
     },
     {
       "source": "/(.*)",
