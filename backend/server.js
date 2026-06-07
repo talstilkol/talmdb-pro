@@ -184,6 +184,15 @@ app.delete('/movies/:id', async (req, res, next) => {
   }
 });
 
+app.get('/movies/genres', async (_req, res, next) => {
+  try {
+    const genresById = await genreMap();
+    res.json([...genresById.values()].slice(0, 10));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.get('/movies/search', async (req, res, next) => {
   try {
     await connectDB();
@@ -197,9 +206,9 @@ app.get('/movies/search', async (req, res, next) => {
   }
 });
 
-app.get('/movies/suggest', limit(30, 60000), async (req, res, next) => {
+async function suggestMovies(req, res, next) {
   try {
-    const query = clean(req.query.query);
+    const query = clean(req.query.query || req.query.name || req.query.title || req.body?.query || req.body?.name || req.body?.title);
     if (query.length < 2) return res.json([]);
     const [data, genresById] = await Promise.all([
       tmdbFetch('/search/movie', { query, include_adult: 'false', page: '1' }),
@@ -209,7 +218,10 @@ app.get('/movies/suggest', limit(30, 60000), async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
+}
+
+app.get('/movies/suggest', limit(30, 60000), suggestMovies);
+app.post('/movies/suggest', limit(30, 60000), suggestMovies);
 
 app.post('/movies/generate', limit(12, 60000), async (req, res, next) => {
   try {

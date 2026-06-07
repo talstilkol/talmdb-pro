@@ -12,12 +12,15 @@ Backend: http://localhost:5000/movies
 5. `npm run dev:backend`
 6. `npm run dev:frontend`
 
+OpenAI API key: create a secret key at https://platform.openai.com/api-keys and save it as `OPENAI_API_KEY` in Vercel Environment Variables. Do not commit it.
+
 ## Features
 
 - Express + Mongo movie library.
 - React + Tailwind Pro UI.
 - Live library search with debounce and request cancellation.
 - TMDb autocomplete with dynamic genre lookup from TMDb, not hardcoded genre IDs.
+- Movie autocomplete fills title, year, genre, description, poster, TMDb id, and source.
 - Required release year, optional poster, TMDb id, and source tracking.
 - AI description generation through Vercel AI Gateway or OpenAI.
 - Backend validation, duplicate TMDb prevention, basic rate limiting, and safe title search.
@@ -31,6 +34,8 @@ Backend: http://localhost:5000/movies
 - `GET /movies/search?name=`
 - `POST /movies/generate`
 - `GET /movies/suggest?query=`
+- `POST /movies/suggest`
+- `GET /movies/genres`
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
 

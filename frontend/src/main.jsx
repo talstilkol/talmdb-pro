@@ -106,11 +106,22 @@ function AllMovies() {
 
 function AddMovie() {
   const [form, setForm] = useState({ title: '', genre: '', description: '', year: '', poster: '', tmdbId: '', source: 'manual' });
+  const [genres, setGenres] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [generating, setGenerating] = useState(false);
   const skipSuggest = useRef(false);
-  const change = (event) => setForm({ ...form, [event.target.name]: event.target.value });
+  const change = (event) => {
+    const { name, value } = event.target;
+    setForm((current) => {
+      const next = { ...current, [name]: value };
+      if (name === 'title' && current.source === 'tmdb' && value !== current.title) {
+        next.tmdbId = '';
+        next.source = 'manual';
+      }
+      return next;
+    });
+  };
 
   function valid() {
     const movie = {
@@ -209,11 +220,15 @@ function AddMovie() {
     };
   }, [form.title]);
 
+  useEffect(() => {
+    api('/movies/genres').then(setGenres).catch(() => setGenres([]));
+  }, []);
+
   return (
     <form className="grid max-w-2xl gap-3" onSubmit={submit}>
       <h1 className="text-2xl font-black">Add Movie</h1>
       <div className="relative">
-        <input className="w-full rounded-md border border-white/10 bg-neutral-900 p-3" name="title" placeholder="Title" value={form.title} onChange={change} />
+        <input autoComplete="off" className="w-full rounded-md border border-white/10 bg-neutral-900 p-3" name="title" placeholder="Title" value={form.title} onChange={change} />
         {loadingSuggest && <p className="mt-2 text-xs text-neutral-400">Searching TMDb...</p>}
         {suggestions.length > 0 && (
           <div className="absolute z-20 mt-2 max-h-96 w-full overflow-auto rounded-lg border border-white/10 bg-neutral-950 shadow-2xl">
@@ -230,7 +245,10 @@ function AddMovie() {
           </div>
         )}
       </div>
-      <input className="rounded-md border border-white/10 bg-neutral-900 p-3" name="genre" placeholder="Genre" value={form.genre} onChange={change} />
+      <input className="rounded-md border border-white/10 bg-neutral-900 p-3" list="movie-genres" name="genre" placeholder="Genre" value={form.genre} onChange={change} />
+      <datalist id="movie-genres">
+        {genres.map((genre) => <option key={genre} value={genre} />)}
+      </datalist>
       <input
         className="rounded-md border border-white/10 bg-neutral-900 p-3"
         inputMode="numeric"
