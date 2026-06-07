@@ -224,6 +224,8 @@ function AddMovie() {
     api('/movies/genres').then(setGenres).catch(() => setGenres([]));
   }, []);
 
+  const isTmdbAutofilled = form.source === 'tmdb' && Boolean(form.tmdbId);
+
   return (
     <form className="grid max-w-2xl gap-3" onSubmit={submit}>
       <h1 className="text-2xl font-black">Add Movie</h1>
@@ -269,9 +271,11 @@ function AddMovie() {
         onChange={change}
       />
       <p className="text-right text-xs text-neutral-400">{form.description.length}/200</p>
-      <button type="button" className="rounded-md border border-yellow-400 px-4 py-3 font-semibold text-yellow-300 hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-60" onClick={generate} disabled={generating}>
-        {generating ? 'Generating...' : 'Generate AI Description'}
-      </button>
+      {!isTmdbAutofilled && (
+        <button type="button" className="rounded-md border border-yellow-400 px-4 py-3 font-semibold text-yellow-300 hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-60" onClick={generate} disabled={generating}>
+          {generating ? 'Generating...' : 'Generate AI Description'}
+        </button>
+      )}
       <button className="rounded-md bg-yellow-400 px-4 py-3 font-black text-black hover:bg-yellow-300">Add Movie</button>
     </form>
   );
