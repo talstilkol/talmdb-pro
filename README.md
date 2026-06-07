@@ -1,7 +1,9 @@
 # TalMDB Pro
 
-Frontend: http://localhost:5173/all-movies  
-Backend: http://localhost:5000/movies
+Frontend: https://talmdb-pro.vercel.app/all-movies  
+Backend: https://talmdb-pro.vercel.app/movies
+
+Local in this workspace: http://127.0.0.1:5174/all-movies and http://localhost:5001/movies.
 
 ## Run
 

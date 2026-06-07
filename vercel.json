@@ -4,6 +4,26 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
+      "source": "/movies/search",
+      "destination": "/api/movies/search"
+    },
+    {
+      "source": "/movies/suggest",
+      "destination": "/api/movies/suggest"
+    },
+    {
+      "source": "/movies/genres",
+      "destination": "/api/movies/genres"
+    },
+    {
+      "source": "/movies/generate",
+      "destination": "/api/movies/generate"
+    },
+    {
+      "source": "/movies/:id",
+      "destination": "/api/movie-id?id=:id"
+    },
+    {
       "source": "/movies",
       "destination": "/api/movies"
     },
