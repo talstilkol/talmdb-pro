@@ -16,6 +16,10 @@
       "destination": "/api/movies/genres"
     },
     {
+      "source": "/movies/ai-status",
+      "destination": "/api/movies/ai-status"
+    },
+    {
       "source": "/movies/generate",
       "destination": "/api/movies/generate"
     },

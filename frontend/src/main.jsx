@@ -112,6 +112,7 @@ function AddMovie() {
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [autoFilledDescription, setAutoFilledDescription] = useState(false);
+  const [aiAvailable, setAiAvailable] = useState(null);
   const [aiMessage, setAiMessage] = useState('');
   const skipSuggest = useRef(false);
   const autoGenerateKey = useRef('');
@@ -179,6 +180,10 @@ function AddMovie() {
       if (!silent) alert('Enter title and genre first');
       return;
     }
+    if (aiAvailable === false) {
+      setAiMessage('AI key is missing in Vercel. Add OPENAI_API_KEY or AI_GATEWAY_API_KEY.');
+      return;
+    }
     setGenerating(true);
     try {
       const data = await api('/movies/generate', {
@@ -192,8 +197,7 @@ function AddMovie() {
       setAiMessage('');
     } catch (error) {
       if (error.name !== 'AbortError') {
-        if (silent) setAiMessage(error.message);
-        else alert(error.message);
+        setAiMessage(error.message);
       }
     } finally {
       setGenerating(false);
@@ -249,6 +253,13 @@ function AddMovie() {
 
   useEffect(() => {
     api('/movies/genres').then(setGenres).catch(() => setGenres([]));
+    api('/movies/ai-status')
+      .then((data) => {
+        setAiAvailable(Boolean(data.available));
+      })
+      .catch(() => {
+        setAiAvailable(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -259,6 +270,11 @@ function AddMovie() {
     if (mode !== 'basic' || !title || !genre) return;
     if (description && !autoFilledDescription) return;
     if (year !== undefined && (!Number.isInteger(year) || year < firstMovieYear || year > maxReleaseYear)) return;
+    if (aiAvailable === null) return;
+    if (aiAvailable === false) {
+      setAiMessage('AI key is missing in Vercel. Add OPENAI_API_KEY or AI_GATEWAY_API_KEY.');
+      return;
+    }
 
     const key = `${title}|${genre}|${year || ''}`;
     if (autoGenerateKey.current === key) return;
@@ -272,7 +288,7 @@ function AddMovie() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [mode, form.title, form.genre, form.year, form.description, autoFilledDescription]);
+  }, [mode, form.title, form.genre, form.year, form.description, autoFilledDescription, aiAvailable]);
 
   const hideGenerate = autoFilledDescription && Boolean(form.description.trim());
 

@@ -193,6 +193,10 @@ app.get('/movies/genres', async (_req, res, next) => {
   }
 });
 
+app.get('/movies/ai-status', (_req, res) => {
+  res.json({ available: Boolean(process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY) });
+});
+
 app.get('/movies/search', async (req, res, next) => {
   try {
     await connectDB();
