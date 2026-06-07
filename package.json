@@ -1,6 +1,7 @@
 {
   "name": "talmdb-pro",
   "private": true,
+  "type": "module",
   "workspaces": [
     "backend",
     "frontend"
