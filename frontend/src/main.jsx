@@ -9,6 +9,8 @@ const links = [
   ['/search-movies', 'Search']
 ];
 const cardColors = ['from-sky-500 to-cyan-400', 'from-rose-500 to-orange-400', 'from-emerald-500 to-teal-400', 'from-violet-500 to-fuchsia-500'];
+const firstMovieYear = 1888;
+const maxReleaseYear = new Date().getFullYear() + 2;
 
 async function api(path, options) {
   const res = await fetch(`${API}${path}`, options);
@@ -33,7 +35,9 @@ function MovieCard({ movie, onDelete }) {
         {movie.year && <span className="absolute right-2 top-2 rounded bg-black/75 px-2 py-1 text-xs font-semibold text-yellow-300">{movie.year}</span>}
       </div>
       <div className="flex flex-1 flex-col p-4">
-        <h2 className="line-clamp-2 text-base font-bold">{movie.title}</h2>
+        <h2 className="line-clamp-2 text-base font-bold">
+          {movie.title} {movie.year && <span className="text-sm font-medium text-neutral-500">({movie.year})</span>}
+        </h2>
         <p className="mt-1 text-sm text-yellow-300">{movie.genre}</p>
         <p className="mt-3 line-clamp-3 flex-1 text-sm leading-6 text-neutral-300">{movie.description || 'unknown/unavailable'}</p>
         <a className="mt-3 text-sm font-semibold text-sky-300 hover:text-sky-200" href={imdbUrl} target="_blank" rel="noreferrer">
@@ -121,7 +125,8 @@ function AddMovie() {
     if (!movie.title || movie.title.length > 80) return alert('Title must be 1-80 characters');
     if (!movie.genre) return alert('Genre is required');
     if (movie.description.length > 200) return alert('Description can be up to 200 characters');
-    if (movie.year && (!Number.isInteger(movie.year) || movie.year < 1888 || movie.year > new Date().getFullYear() + 2)) return alert('Year is invalid');
+    if (!movie.year) return alert('Year is required');
+    if (!Number.isInteger(movie.year) || movie.year < firstMovieYear || movie.year > maxReleaseYear) return alert('Year is invalid');
     return movie;
   }
 
@@ -146,13 +151,14 @@ function AddMovie() {
   async function generate() {
     const title = form.title.trim();
     const genre = form.genre.trim();
-    if (!title || !genre) return alert('Enter title and genre first');
+    const year = form.year ? Number(form.year) : undefined;
+    if (!title || !genre || !year) return alert('Enter title, genre and year first');
     setGenerating(true);
     try {
       const data = await api('/movies/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, genre })
+        body: JSON.stringify({ title, genre, year })
       });
       setForm((current) => ({ ...current, description: data.description }));
     } catch (error) {
@@ -225,7 +231,17 @@ function AddMovie() {
         )}
       </div>
       <input className="rounded-md border border-white/10 bg-neutral-900 p-3" name="genre" placeholder="Genre" value={form.genre} onChange={change} />
-      <input className="rounded-md border border-white/10 bg-neutral-900 p-3" name="year" placeholder="Year" value={form.year} onChange={change} />
+      <input
+        className="rounded-md border border-white/10 bg-neutral-900 p-3"
+        inputMode="numeric"
+        max={maxReleaseYear}
+        min={firstMovieYear}
+        name="year"
+        placeholder="Release year"
+        type="number"
+        value={form.year}
+        onChange={change}
+      />
       <input className="rounded-md border border-white/10 bg-neutral-900 p-3" name="poster" placeholder="Poster URL" value={form.poster} onChange={change} />
       <textarea
         className="min-h-32 rounded-md border border-white/10 bg-neutral-900 p-3"
@@ -235,7 +251,7 @@ function AddMovie() {
         onChange={change}
       />
       <p className="text-right text-xs text-neutral-400">{form.description.length}/200</p>
-      <button type="button" className="rounded-md border border-yellow-400 px-4 py-3 font-semibold text-yellow-300 hover:bg-yellow-400 hover:text-black" onClick={generate} disabled={generating}>
+      <button type="button" className="rounded-md border border-yellow-400 px-4 py-3 font-semibold text-yellow-300 hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-60" onClick={generate} disabled={generating}>
         {generating ? 'Generating...' : 'Generate AI Description'}
       </button>
       <button className="rounded-md bg-yellow-400 px-4 py-3 font-black text-black hover:bg-yellow-300">Add Movie</button>
@@ -271,7 +287,7 @@ function SearchMovies() {
   return (
     <>
       <h1 className="mb-4 text-2xl font-black">Search Movies</h1>
-      <input className="mb-2 w-full max-w-xl rounded-md border border-white/10 bg-neutral-900 p-3" placeholder="Movie title" value={name} onChange={(event) => setName(event.target.value)} />
+      <input className="mb-2 w-full max-w-xl rounded-md border border-white/10 bg-neutral-900 p-3" placeholder="Movie title or year" value={name} onChange={(event) => setName(event.target.value)} />
       <p className="mb-4 text-sm text-neutral-400">{loading ? 'Searching...' : name.trim() ? `${movies.length} results` : 'Type to search your library'}</p>
       <MovieGrid movies={movies} />
     </>

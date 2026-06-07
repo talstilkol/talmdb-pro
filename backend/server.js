@@ -7,12 +7,15 @@ const app = express();
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || '*' }));
 app.use(express.json({ limit: '32kb' }));
 
+const firstMovieYear = 1888;
+const maxReleaseYear = new Date().getFullYear() + 2;
+
 const movieSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true, minlength: 1, maxlength: 80 },
     genre: { type: String, required: true, trim: true, minlength: 1 },
     description: { type: String, trim: true, maxlength: 200, default: '' },
-    year: { type: Number, min: 1888, max: new Date().getFullYear() + 2 },
+    year: { type: Number, required: true, min: firstMovieYear, max: maxReleaseYear },
     poster: { type: String, trim: true, default: '' },
     tmdbId: { type: Number, index: true, sparse: true },
     source: { type: String, enum: ['manual', 'tmdb'], default: 'manual' }
@@ -34,9 +37,8 @@ function movieError({ title, genre, description, year, poster, tmdbId }) {
   if (!title || title.length > 80) return 'Title must be 1-80 characters';
   if (!genre) return 'Genre is required';
   if (description.length > 200) return 'Description can be up to 200 characters';
-  if (year !== undefined && year !== '' && (!Number.isInteger(Number(year)) || Number(year) < 1888 || Number(year) > new Date().getFullYear() + 2)) {
-    return 'Year is invalid';
-  }
+  if (year === undefined || year === '') return 'Year is required';
+  if (!Number.isInteger(Number(year)) || Number(year) < firstMovieYear || Number(year) > maxReleaseYear) return 'Year is invalid';
   if (poster && !URL.canParse(poster)) return 'Poster must be a valid URL';
   if (tmdbId !== undefined && tmdbId !== '' && !Number.isInteger(Number(tmdbId))) return 'TMDb id is invalid';
   return '';
@@ -171,7 +173,9 @@ app.get('/movies/search', async (req, res, next) => {
   try {
     const name = clean(req.query.name);
     if (!name) return res.json([]);
-    res.json(await Movie.find({ title: { $regex: escapeRegex(name), $options: 'i' } }).sort({ createdAt: -1 }));
+    const titleQuery = { title: { $regex: escapeRegex(name), $options: 'i' } };
+    const filter = /^\d{4}$/.test(name) ? { $or: [titleQuery, { year: Number(name) }] } : titleQuery;
+    res.json(await Movie.find(filter).sort({ createdAt: -1 }));
   } catch (error) {
     next(error);
   }
@@ -195,7 +199,8 @@ app.post('/movies/generate', limit(12, 60000), async (req, res, next) => {
   try {
     const title = clean(req.body.title);
     const genre = clean(req.body.genre);
-    const error = movieError({ title, genre, description: '' });
+    const year = req.body.year === '' || req.body.year === undefined ? undefined : Number(req.body.year);
+    const error = movieError({ title, genre, description: '', year });
     if (error) return bad(res, error);
     if (!process.env.AI_GATEWAY_API_KEY && !process.env.OPENAI_API_KEY) {
       return res.status(503).json({ error: 'AI_GATEWAY_API_KEY or OPENAI_API_KEY is required' });
@@ -216,13 +221,13 @@ app.post('/movies/generate', limit(12, 60000), async (req, res, next) => {
               messages: [
                 {
                   role: 'user',
-                  content: `Return JSON only: {"description":"..."}. Write a concise movie description under 200 characters. Title: ${title}. Genre: ${genre}.`
+                  content: `Return JSON only: {"description":"..."}. Write a concise movie description under 200 characters. Title: ${title}. Year: ${year}. Genre: ${genre}.`
                 }
               ]
             }
           : {
               model: process.env.AI_MODEL || process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-              input: `Write one concise movie description under 200 characters. Title: ${title}. Genre: ${genre}. Return only the description.`
+              input: `Write one concise movie description under 200 characters. Title: ${title}. Year: ${year}. Genre: ${genre}. Return only the description.`
             }
       )
     });

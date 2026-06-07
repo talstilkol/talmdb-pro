@@ -18,9 +18,10 @@ Backend: http://localhost:5000/movies
 - React + Tailwind Pro UI.
 - Live library search with debounce and request cancellation.
 - TMDb autocomplete with dynamic genre lookup from TMDb, not hardcoded genre IDs.
-- Optional poster, release year, TMDb id, and source tracking.
+- Required release year, optional poster, TMDb id, and source tracking.
 - AI description generation through Vercel AI Gateway or OpenAI.
 - Backend validation, duplicate TMDb prevention, basic rate limiting, and safe title search.
+- Search by movie title or exact release year.
 
 ## API
 
