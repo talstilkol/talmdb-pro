@@ -4,14 +4,18 @@ import express from 'express';
 import mongoose from 'mongoose';
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.use(cors({ origin: process.env.CLIENT_ORIGIN || '*' }));
+app.use(express.json({ limit: '32kb' }));
 
 const movieSchema = new mongoose.Schema(
   {
-    title: { type: String, required: true, trim: true, minlength: 1, maxlength: 20 },
+    title: { type: String, required: true, trim: true, minlength: 1, maxlength: 80 },
     genre: { type: String, required: true, trim: true, minlength: 1 },
-    description: { type: String, trim: true, maxlength: 200, default: '' }
+    description: { type: String, trim: true, maxlength: 200, default: '' },
+    year: { type: Number, min: 1888, max: new Date().getFullYear() + 2 },
+    poster: { type: String, trim: true, default: '' },
+    tmdbId: { type: Number, index: true, sparse: true },
+    source: { type: String, enum: ['manual', 'tmdb'], default: 'manual' }
   },
   { timestamps: true }
 );
@@ -20,21 +24,106 @@ const Movie = mongoose.model('Movie', movieSchema);
 const clean = (value) => (typeof value === 'string' ? value.trim() : '');
 const bad = (res, error) => res.status(400).json({ error });
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const tmdbBase = 'https://api.themoviedb.org/3';
+const tmdbImageBase = 'https://image.tmdb.org/t/p/w342';
+const tmdbLanguage = process.env.TMDB_LANGUAGE || 'en-US';
+const rateBuckets = new Map();
+let genreCache = { expiresAt: 0, map: new Map() };
 
-function movieError({ title, genre, description }) {
-  if (!title || title.length > 20) return 'Title must be 1-20 characters';
+function movieError({ title, genre, description, year, poster, tmdbId }) {
+  if (!title || title.length > 80) return 'Title must be 1-80 characters';
   if (!genre) return 'Genre is required';
   if (description.length > 200) return 'Description can be up to 200 characters';
+  if (year !== undefined && year !== '' && (!Number.isInteger(Number(year)) || Number(year) < 1888 || Number(year) > new Date().getFullYear() + 2)) {
+    return 'Year is invalid';
+  }
+  if (poster && !URL.canParse(poster)) return 'Poster must be a valid URL';
+  if (tmdbId !== undefined && tmdbId !== '' && !Number.isInteger(Number(tmdbId))) return 'TMDb id is invalid';
   return '';
+}
+
+function limit(max, windowMs) {
+  return (req, res, next) => {
+    const key = req.ip || 'unknown';
+    const now = Date.now();
+    const current = rateBuckets.get(key);
+    if (!current || current.resetAt <= now) {
+      rateBuckets.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    if (current.count >= max) return res.status(429).json({ error: 'Too many requests' });
+    current.count += 1;
+    next();
+  };
 }
 
 function aiText(data) {
   if (typeof data.output_text === 'string') return data.output_text;
+  const message = data.choices?.[0]?.message?.content;
+  if (typeof message === 'string') {
+    try {
+      return JSON.parse(message).description || message;
+    } catch {
+      return message;
+    }
+  }
   if (!Array.isArray(data.output)) return '';
   return data.output
     .flatMap((item) => (Array.isArray(item.content) ? item.content : []))
     .map((part) => part.text || '')
     .join(' ');
+}
+
+function tmdbUrl(path, params = {}) {
+  const url = new URL(`${tmdbBase}${path}`);
+  Object.entries({ language: tmdbLanguage, ...params }).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') url.searchParams.set(key, value);
+  });
+  if (!process.env.TMDB_ACCESS_TOKEN && process.env.TMDB_API_KEY) {
+    url.searchParams.set('api_key', process.env.TMDB_API_KEY);
+  }
+  return url;
+}
+
+async function tmdbFetch(path, params) {
+  if (!process.env.TMDB_ACCESS_TOKEN && !process.env.TMDB_API_KEY) {
+    const error = new Error('TMDB_ACCESS_TOKEN or TMDB_API_KEY is required');
+    error.status = 503;
+    throw error;
+  }
+  const res = await fetch(tmdbUrl(path, params), {
+    headers: process.env.TMDB_ACCESS_TOKEN ? { Authorization: `Bearer ${process.env.TMDB_ACCESS_TOKEN}` } : {}
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error(data.status_message || 'TMDb request failed');
+    error.status = 502;
+    throw error;
+  }
+  return data;
+}
+
+async function genreMap() {
+  if (genreCache.expiresAt > Date.now()) return genreCache.map;
+  const data = await tmdbFetch('/genre/movie/list');
+  const map = new Map((data.genres || []).filter((genre) => genre.id && genre.name).map((genre) => [genre.id, genre.name]));
+  genreCache = { expiresAt: Date.now() + 86400000, map };
+  return map;
+}
+
+function toSuggestion(movie, genresById) {
+  const genres = (movie.genre_ids || []).map((id) => genresById.get(id)).filter(Boolean);
+  const year = movie.release_date ? Number(movie.release_date.slice(0, 4)) : undefined;
+  return {
+    tmdbId: movie.id,
+    title: clean(movie.title || movie.original_title),
+    genre: genres[0] || 'unknown/unavailable',
+    genres,
+    description: clean(movie.overview).slice(0, 200),
+    year: Number.isInteger(year) ? year : undefined,
+    poster: movie.poster_path ? `${tmdbImageBase}${movie.poster_path}` : '',
+    source: 'tmdb'
+  };
 }
 
 app.get('/movies', async (_req, res, next) => {
@@ -50,10 +139,17 @@ app.post('/movies', async (req, res, next) => {
     const movie = {
       title: clean(req.body.title),
       genre: clean(req.body.genre),
-      description: clean(req.body.description)
+      description: clean(req.body.description),
+      year: req.body.year === '' || req.body.year === undefined ? undefined : Number(req.body.year),
+      poster: clean(req.body.poster),
+      tmdbId: req.body.tmdbId === '' || req.body.tmdbId === undefined ? undefined : Number(req.body.tmdbId),
+      source: req.body.source === 'tmdb' ? 'tmdb' : 'manual'
     };
     const error = movieError(movie);
     if (error) return bad(res, error);
+    if (movie.tmdbId && (await Movie.exists({ tmdbId: movie.tmdbId }))) {
+      return res.status(409).json({ error: 'Movie already exists' });
+    }
     res.status(201).json(await Movie.create(movie));
   } catch (error) {
     next(error);
@@ -81,24 +177,54 @@ app.get('/movies/search', async (req, res, next) => {
   }
 });
 
-app.post('/movies/generate', async (req, res, next) => {
+app.get('/movies/suggest', limit(30, 60000), async (req, res, next) => {
+  try {
+    const query = clean(req.query.query);
+    if (query.length < 2) return res.json([]);
+    const [data, genresById] = await Promise.all([
+      tmdbFetch('/search/movie', { query, include_adult: 'false', page: '1' }),
+      genreMap()
+    ]);
+    res.json((data.results || []).slice(0, 8).map((movie) => toSuggestion(movie, genresById)).filter((movie) => movie.title));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/movies/generate', limit(12, 60000), async (req, res, next) => {
   try {
     const title = clean(req.body.title);
     const genre = clean(req.body.genre);
     const error = movieError({ title, genre, description: '' });
     if (error) return bad(res, error);
-    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY is required' });
+    if (!process.env.AI_GATEWAY_API_KEY && !process.env.OPENAI_API_KEY) {
+      return res.status(503).json({ error: 'AI_GATEWAY_API_KEY or OPENAI_API_KEY is required' });
+    }
 
-    const aiRes = await fetch('https://api.openai.com/v1/responses', {
+    const useGateway = Boolean(process.env.AI_GATEWAY_API_KEY);
+    const aiRes = await fetch(useGateway ? 'https://ai-gateway.vercel.sh/v1/chat/completions' : 'https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${useGateway ? process.env.AI_GATEWAY_API_KEY : process.env.OPENAI_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-        input: `Write one concise movie description under 200 characters. Title: ${title}. Genre: ${genre}. Return only the description.`
-      })
+      body: JSON.stringify(
+        useGateway
+          ? {
+              model: process.env.AI_MODEL || 'openai/gpt-4o-mini',
+              response_format: { type: 'json_object' },
+              messages: [
+                {
+                  role: 'user',
+                  content: `Return JSON only: {"description":"..."}. Write a concise movie description under 200 characters. Title: ${title}. Genre: ${genre}.`
+                }
+              ]
+            }
+          : {
+              model: process.env.AI_MODEL || process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+              input: `Write one concise movie description under 200 characters. Title: ${title}. Genre: ${genre}. Return only the description.`
+            }
+      )
     });
 
     const data = await aiRes.json().catch(() => ({}));
@@ -112,6 +238,7 @@ app.post('/movies/generate', async (req, res, next) => {
 });
 
 app.use((error, _req, res, _next) => {
+  if (error.status) return res.status(error.status).json({ error: error.message });
   if (error.name === 'ValidationError') {
     return res.status(400).json({ error: Object.values(error.errors).map((item) => item.message).join(', ') });
   }

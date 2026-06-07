@@ -1,4 +1,5 @@
 {
+  "name": "talmdb-pro",
   "private": true,
   "workspaces": [
     "backend",

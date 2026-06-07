@@ -1,4 +1,4 @@
-# Movie App
+# TalMDB Pro
 
 Frontend: http://localhost:5173/all-movies  
 Backend: http://localhost:5000/movies
@@ -6,10 +6,31 @@ Backend: http://localhost:5000/movies
 ## Run
 
 1. `npm install`
-2. Set `MONGO_URI` for the backend. For `/movies/generate`, also set `OPENAI_API_KEY`; `OPENAI_MODEL` is optional.
-3. `npm run dev:backend`
-4. `npm run dev:frontend`
+2. Set `MONGO_URI` for MongoDB.
+3. For TMDb autocomplete, set `TMDB_ACCESS_TOKEN` or `TMDB_API_KEY`.
+4. For AI descriptions, set `AI_GATEWAY_API_KEY` or `OPENAI_API_KEY`; `AI_MODEL` is optional.
+5. `npm run dev:backend`
+6. `npm run dev:frontend`
 
-The backend is an Express API connected to MongoDB with five routes: list, add, delete, title search, and AI description generation. The frontend is React with Tailwind and includes `/all-movies`, `/add-movie`, and `/search-movies`.
+## Features
 
-AI help: Codex was used to implement the API, React pages, Tailwind setup, validation, and this README.
+- Express + Mongo movie library.
+- React + Tailwind Pro UI.
+- Live library search with debounce and request cancellation.
+- TMDb autocomplete with dynamic genre lookup from TMDb, not hardcoded genre IDs.
+- Optional poster, release year, TMDb id, and source tracking.
+- AI description generation through Vercel AI Gateway or OpenAI.
+- Backend validation, duplicate TMDb prevention, basic rate limiting, and safe title search.
+
+## API
+
+- `GET /movies`
+- `POST /movies`
+- `DELETE /movies/:id`
+- `GET /movies/search?name=`
+- `POST /movies/generate`
+- `GET /movies/suggest?query=`
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+
+AI help: Codex was used to build the Pro UI, TMDb integration, AI endpoint support, validation, and this README.
