@@ -24,7 +24,7 @@ OpenAI API key: create a secret key at https://platform.openai.com/api-keys and 
 
 - Express + Mongo movie library.
 - React + Tailwind Pro UI.
-- Basic add mode for manual title, genre, year, and AI-generated description only.
+- Basic add mode for manual title, genre, year, and automatic AI-generated description only.
 - Live library search with debounce and request cancellation.
 - TMDb autocomplete with dynamic genre lookup from TMDb, not hardcoded genre IDs.
 - Movie autocomplete fills title, year, genre, description, poster, TMDb id, and source.

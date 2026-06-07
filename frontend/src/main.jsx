@@ -112,10 +112,16 @@ function AddMovie() {
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [autoFilledDescription, setAutoFilledDescription] = useState(false);
+  const [aiMessage, setAiMessage] = useState('');
   const skipSuggest = useRef(false);
+  const autoGenerateKey = useRef('');
   const change = (event) => {
     const { name, value } = event.target;
-    if (name === 'description') setAutoFilledDescription(false);
+    if (name === 'description') {
+      setAutoFilledDescription(false);
+      autoGenerateKey.current = '';
+    }
+    if (name === 'title' || name === 'genre' || name === 'year' || name === 'description') setAiMessage('');
     setForm((current) => {
       const next = { ...current, [name]: value };
       if (name === 'title' && current.source === 'tmdb' && value !== current.title) {
@@ -156,6 +162,8 @@ function AddMovie() {
       });
       setForm({ title: '', genre: '', description: '', year: '', poster: '', tmdbId: '', source: 'manual' });
       setAutoFilledDescription(false);
+      setAiMessage('');
+      autoGenerateKey.current = '';
       setSuggestions([]);
       alert('Movie added');
     } catch (error) {
@@ -163,21 +171,30 @@ function AddMovie() {
     }
   }
 
-  async function generate() {
+  async function generate({ signal, silent = false } = {}) {
     const title = form.title.trim();
     const genre = form.genre.trim();
     const year = form.year ? Number(form.year) : undefined;
-    if (!title || !genre) return alert('Enter title and genre first');
+    if (!title || !genre) {
+      if (!silent) alert('Enter title and genre first');
+      return;
+    }
     setGenerating(true);
     try {
       const data = await api('/movies/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, genre, year })
+        body: JSON.stringify({ title, genre, year }),
+        signal
       });
       setForm((current) => ({ ...current, description: data.description }));
+      setAutoFilledDescription(true);
+      setAiMessage('');
     } catch (error) {
-      alert(error.message);
+      if (error.name !== 'AbortError') {
+        if (silent) setAiMessage(error.message);
+        else alert(error.message);
+      }
     } finally {
       setGenerating(false);
     }
@@ -233,6 +250,29 @@ function AddMovie() {
   useEffect(() => {
     api('/movies/genres').then(setGenres).catch(() => setGenres([]));
   }, []);
+
+  useEffect(() => {
+    const title = form.title.trim();
+    const genre = form.genre.trim();
+    const description = form.description.trim();
+    const year = form.year ? Number(form.year) : undefined;
+    if (mode !== 'basic' || !title || !genre) return;
+    if (description && !autoFilledDescription) return;
+    if (year !== undefined && (!Number.isInteger(year) || year < firstMovieYear || year > maxReleaseYear)) return;
+
+    const key = `${title}|${genre}|${year || ''}`;
+    if (autoGenerateKey.current === key) return;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      autoGenerateKey.current = key;
+      generate({ signal: controller.signal, silent: true });
+    }, 700);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [mode, form.title, form.genre, form.year, form.description, autoFilledDescription]);
 
   const hideGenerate = autoFilledDescription && Boolean(form.description.trim());
 
@@ -299,8 +339,9 @@ function AddMovie() {
         onChange={change}
       />
       <p className="text-right text-xs text-neutral-400">{form.description.length}/200</p>
+      {aiMessage && <p className="text-sm text-yellow-300">{aiMessage}</p>}
       {!hideGenerate && (
-        <button type="button" className="rounded-md border border-yellow-400 px-4 py-3 font-semibold text-yellow-300 hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-60" onClick={generate} disabled={generating}>
+        <button type="button" className="rounded-md border border-yellow-400 px-4 py-3 font-semibold text-yellow-300 hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-60" onClick={() => generate()} disabled={generating}>
           {generating ? 'Generating...' : 'Generate with AI'}
         </button>
       )}
