@@ -110,9 +110,11 @@ function AddMovie() {
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [autoFilledDescription, setAutoFilledDescription] = useState(false);
   const skipSuggest = useRef(false);
   const change = (event) => {
     const { name, value } = event.target;
+    if (name === 'description') setAutoFilledDescription(false);
     setForm((current) => {
       const next = { ...current, [name]: value };
       if (name === 'title' && current.source === 'tmdb' && value !== current.title) {
@@ -152,6 +154,7 @@ function AddMovie() {
         body: JSON.stringify(movie)
       });
       setForm({ title: '', genre: '', description: '', year: '', poster: '', tmdbId: '', source: 'manual' });
+      setAutoFilledDescription(false);
       setSuggestions([]);
       alert('Movie added');
     } catch (error) {
@@ -181,15 +184,17 @@ function AddMovie() {
 
   function pick(movie) {
     skipSuggest.current = true;
+    const description = movie.description || '';
     setForm({
       title: movie.title || '',
       genre: movie.genres?.length ? movie.genres.join(', ') : movie.genre || '',
-      description: movie.description || '',
+      description,
       year: movie.year || '',
       poster: movie.poster || '',
       tmdbId: movie.tmdbId || '',
       source: 'tmdb'
     });
+    setAutoFilledDescription(Boolean(description));
     setSuggestions([]);
   }
 
@@ -224,7 +229,7 @@ function AddMovie() {
     api('/movies/genres').then(setGenres).catch(() => setGenres([]));
   }, []);
 
-  const isTmdbAutofilled = form.source === 'tmdb' && Boolean(form.tmdbId);
+  const hideGenerate = autoFilledDescription && Boolean(form.description.trim());
 
   return (
     <form className="grid max-w-2xl gap-3" onSubmit={submit}>
@@ -271,7 +276,7 @@ function AddMovie() {
         onChange={change}
       />
       <p className="text-right text-xs text-neutral-400">{form.description.length}/200</p>
-      {!isTmdbAutofilled && (
+      {!hideGenerate && (
         <button type="button" className="rounded-md border border-yellow-400 px-4 py-3 font-semibold text-yellow-300 hover:bg-yellow-400 hover:text-black disabled:cursor-not-allowed disabled:opacity-60" onClick={generate} disabled={generating}>
           {generating ? 'Generating...' : 'Generate AI Description'}
         </button>
