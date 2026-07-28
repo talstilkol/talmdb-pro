@@ -9,7 +9,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.18.3",
-    "mongoose": "^8.8.4"
+    "mongoose": "^8.24.1"
   },
   "engines": {
     "node": ">=18"
